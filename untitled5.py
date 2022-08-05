@@ -60,10 +60,51 @@ class NumericalFeatureTokenizer(tf.keras.layers.Layer):
         print(self.bias[None].shape)
         return x
 
-#%%
 import numpy as np
 x = np.random.rand(4, 5)
 n_objects, n_features = x.shape
 d_token = 7
 tokenizer = NumericalFeatureTokenizer(n_features, d_token, True, 'uniform')
 tokens = tokenizer(x)
+print("Numerical Token",tokens.shape)
+
+#%%
+from typing import List
+
+class CategoricalFeatureTokenizer(tf.keras.layers.Layer):    
+    def __init__(
+            self,
+            cardinalities: List[int],
+            d_token: int,
+            bias: bool,
+            initialization: str,
+            ) -> None:
+        super(CategoricalFeatureTokenizer, self).__init__()
+        
+        assert cardinalities, 'cardinalities must be non-empty'
+        assert d_token > 0, 'd_token must be positive'
+        initialization_ = _TokenInitialization.from_str(initialization)
+
+        self.category_offsets = tf.Variable(tf.cumsum([0]+cardinalities[:-1], axis=0), trainable=False)
+        self.embeddings = tf.keras.layers.Embedding(sum(cardinalities), d_token, embeddings_initializer=initialization)
+        self.bias = initialization_.apply(len(cardinalities), d_token) if bias else None
+
+    def call(self, x):
+        x = self.embeddings(x + self.category_offsets[None])
+        if self.bias is not None:
+            x = x + self.bias[None]
+        return x
+
+import numpy as np
+cardinalities = [3, 10]
+x = np.array([[0, 5],
+              [1, 7],
+              [0, 2],
+              [2, 4]],
+             dtype="int32"
+             )
+n_objects, n_features = x.shape
+d_token = 3
+tokenizer = CategoricalFeatureTokenizer(cardinalities, d_token, True, 'uniform')
+tokens = tokenizer(x)
+print("Categorical Token",tokens.shape)
