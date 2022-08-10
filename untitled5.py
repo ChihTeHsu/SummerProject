@@ -85,7 +85,7 @@ class CategoricalFeatureTokenizer(tf.keras.layers.Layer):
         assert d_token > 0, 'd_token must be positive'
         initialization_ = _TokenInitialization.from_str(initialization)
 
-        self.category_offsets = tf.Variable(tf.cumsum([0]+cardinalities[:-1], axis=0), trainable=False)
+        self.category_offsets = tf.Variable(tf.cast(tf.cumsum([0]+cardinalities[:-1], axis=0),"float32"), trainable=False)
         self.embeddings = tf.keras.layers.Embedding(sum(cardinalities), d_token, embeddings_initializer=initialization)
         self.bias = initialization_.apply(len(cardinalities), d_token) if bias else None
 
@@ -101,7 +101,7 @@ x = np.array([[0, 5],
               [1, 7],
               [0, 2],
               [2, 4]],
-             dtype="int32"
+             dtype="float32"
              )
 n_objects, n_features = x.shape
 d_token = 3
