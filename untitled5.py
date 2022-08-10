@@ -88,7 +88,17 @@ class CategoricalFeatureTokenizer(tf.keras.layers.Layer):
         self.category_offsets = tf.Variable(tf.cast(tf.cumsum([0]+cardinalities[:-1], axis=0),"float32"), trainable=False)
         self.embeddings = tf.keras.layers.Embedding(sum(cardinalities), d_token, embeddings_initializer=initialization)
         self.bias = initialization_.apply(len(cardinalities), d_token) if bias else None
+    
+    @property
+    def n_tokens(self) -> int:
+        """The number of tokens."""
+        return self.category_offsets.shape[0]
 
+    @property
+    def d_token(self) -> int:
+        """The size of one token."""
+        return self.embeddings.output_dim
+    
     def call(self, x):
         x = self.embeddings(x + self.category_offsets[None])
         if self.bias is not None:
