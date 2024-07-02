@@ -123,6 +123,7 @@ def tf_interp(x: typing.Any, xs: typing.Any, ys: typing.Any) -> tf.Tensor:
 
 # https://stackoverflow.com/questions/58546373/how-to-add-randomness-in-each-iteration-of-tensorflow-dataset
 # https://stackoverflow.com/questions/69108284/tf-data-dataset-map-functionality-and-random
+# https://github.com/tensorflow/tensorflow/issues/35090#issuecomment-1345470684
 #def custom_augment(ri):
 #    return tf.nn.dropout(tf_interp(XGRID, RV, ri + tf.random.normal((ri.shape[-1],), 0, 0.015, dtype=ri.dtype)), rate=PROB)*(1-PROB)
 RNG = tf.random.Generator.from_seed(33)
