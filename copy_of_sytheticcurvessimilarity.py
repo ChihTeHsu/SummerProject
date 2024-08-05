@@ -7,6 +7,7 @@ Original file is located at
     https://colab.research.google.com/drive/1KCUf4HwWajxWkqVyR_lIuFORRTbBJMS9
 """
 
+!pip install tensorflow==2.15.1
 !pip install tensorflow_similarity==0.17.1
 !pip install tensorflow_addons
 !pip install faiss-cpu
@@ -38,46 +39,8 @@ def set_global_determinism(seed):
 
 set_global_determinism(seed=777)
 
-import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import KBinsDiscretizer
-
-data = np.load('/content/drive/MyDrive/Colab Notebooks/SpaceScience/Dataset/train_IVs&pars_uniform.npy', allow_pickle=True).item()
-
-ri = data['ri'].reshape(-1,32)
-ri = ri/np.mean(ri[:,:4],axis=-1,keepdims=True)
-rv = data['rv'].reshape(-1,32)
-vst = data['ground_pars']['vst']
-vx = data['ground_pars']['vx']
-v_cor_x = data['ground_pars']['v_cor_x']
-Ti = data['ground_pars']['Ti']
-O_frac = data['ground_pars']['O_frac']
-H_frac = data['ground_pars']['H_frac']
-AP_POT = data['ground_pars']['AP_POT']
-
-idx, _ = np.where(np.isnan(ri))
-ri = np.delete(ri, idx, axis=0)
-rv = np.delete(rv, idx, axis=0)
-vst = np.delete(vst, idx, axis=0)
-vx = np.delete(vx, idx, axis=0)
-v_cor_x = np.delete(v_cor_x, idx, axis=0)
-Ti = np.delete(Ti, idx, axis=0)
-O_frac = np.delete(O_frac, idx, axis=0)
-H_frac = np.delete(H_frac, idx, axis=0)
-AP_POT = np.delete(AP_POT, idx, axis=0)
-
-LABELS = KBinsDiscretizer(
-    n_bins=30,
-    encode="ordinal",
-    strategy='kmeans',
-    random_state=777
-    ).fit_transform(np.c_[0.5*(1.67262177774e-27/1.6e-19)*(16)*(vst - vx + v_cor_x)**2 + (1)*AP_POT, Ti, O_frac])
-
-RI_ref, RI_test, RV_ref, RV_test, y_ref, y_test = train_test_split(ri, rv, LABELS, test_size=0.1, random_state=777)
-
 from scipy.special import erf
 def IVcurve(x, Vx, Phi, Ti, Of):
-    Vsc=7114
     pi=3.1415926
     q=1.6e-19
     k=1.38e-23
@@ -89,11 +52,11 @@ def IVcurve(x, Vx, Phi, Ti, Of):
     b_He=np.sqrt(mHe/(2*k*Ti))
     b_O= np.sqrt(mO/(2*k*Ti))
 
-    f_H= Vsc-Vx-np.sqrt( (2*q/mH)* (0.5+0.5*np.tanh(1e+19*(x+Phi))) * (x+Phi) )
-    f_He=Vsc-Vx-np.sqrt( (2*q/mHe)*(0.5+0.5*np.tanh(1e+19*(x+Phi))) * (x+Phi) )
-    f_O= Vsc-Vx-np.sqrt( (2*q/mO)* (0.5+0.5*np.tanh(1e+19*(x+Phi))) * (x+Phi) )
+    f_H= Vx-np.sqrt( (2*q/mH)* (0.5+0.5*np.tanh(1e+19*(x+Phi))) * (x+Phi) )
+    f_He=Vx-np.sqrt( (2*q/mHe)*(0.5+0.5*np.tanh(1e+19*(x+Phi))) * (x+Phi) )
+    f_O= Vx-np.sqrt( (2*q/mO)* (0.5+0.5*np.tanh(1e+19*(x+Phi))) * (x+Phi) )
 
-    IV= lambda b,f :0.5* (1 + erf(b*f) + np.exp(-b*b*f*f)/(np.sqrt(pi)*b*(Vsc-Vx) ))
+    IV= lambda b,f :0.5* (1 + erf(b*f) + np.exp(-b*b*f*f)/(np.sqrt(pi)*b*(Vx) ))
     return (1-Of)*IV(b_H,f_H)+ Of*IV(b_O,f_O)
 
 RV = np.array(
@@ -104,15 +67,83 @@ RV = np.array(
 
 ground_pars = []
 DATA = []
-for i in range(300000):
-    Vx = np.random.uniform(-1000, 1000)
-    Phi = np.random.uniform(-2.5, 0.)
+for i in range(500000):
+    Vx = 7114-np.random.uniform(-1000, 1000)
+    Phi = np.random.uniform(-2.5, -0.5)
     Ti = np.random.uniform(200, 4500)
     Of = np.random.uniform(0, 1)
     ground_pars.append([Vx, Ti, Of])
     DATA.append( IVcurve(RV, Vx, Phi, Ti, Of) )
 ground_pars = np.array(ground_pars)
 DATA = np.array(DATA)
+"""
+DATA = np.load('/content/drive/MyDrive/Colab Notebooks/SpaceScience/Dataset/train_IVs&pars_uniform_50.npy', allow_pickle=True).item()
+#DATA = np.array([IVcurve(RV, DATA['vst'][i]-DATA['vx'][i]-DATA['v_cor_x'][i], DATA['AP_POT'][i], DATA['Ti'][i], DATA['O_frac'][i]) for i in range(DATA['time'].shape[0])])
+vst = DATA['ground_pars']['vst']
+vx = DATA['ground_pars']['vx']
+v_cor_x = DATA['ground_pars']['v_cor_x']
+Ti = DATA['ground_pars']['Ti']
+O_frac = DATA['ground_pars']['O_frac']
+H_frac = DATA['ground_pars']['H_frac']
+AP_POT = DATA['ground_pars']['AP_POT']
+
+ri = DATA['ri'].reshape(-1,32)
+ri = ri/np.mean(ri[:,:4],axis=-1,keepdims=True)
+rv = DATA['rv'].reshape(-1,32)
+
+idx, _ = np.where( np.isnan(ri))
+ri = np.delete(ri, idx, axis=0)
+rv = np.delete(rv, idx, axis=0)
+vst = np.delete(vst, idx, axis=0)
+vx = np.delete(vx, idx, axis=0)
+v_cor_x = np.delete(v_cor_x, idx, axis=0)
+Ti = np.delete(Ti, idx, axis=0)
+O_frac = np.delete(O_frac, idx, axis=0)
+H_frac = np.delete(H_frac, idx, axis=0)
+AP_POT = np.delete(AP_POT, idx, axis=0)
+"""
+
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import KBinsDiscretizer
+
+test = np.load('/content/drive/MyDrive/Colab Notebooks/SpaceScience/Dataset/test_icon_8Path.npy', allow_pickle=True).item()
+RI_test = test['RI'].reshape(-1,32)
+RV_test = test['RV'].reshape(-1,32)
+vx_test = test['vx']
+AP_test = test['AP']
+Ti_test = test['Ti']
+Hf_test= test['Hf']
+Of_test = test['Of']
+vcor_test = test['vcor']
+vst_test = test['vst']
+
+Reference = np.load('/content/drive/MyDrive/Colab Notebooks/SpaceScience/Dataset/ref_IVs&pars_uniform_50.npy', allow_pickle=True).item()
+RI_ref = Reference['ri'].reshape(-1,32)
+RI_ref = RI_ref/np.mean(RI_ref[:,:4],axis=-1,keepdims=True)
+RV_ref = Reference['rv'].reshape(-1,32)
+vst_ref = Reference['ground_pars']['vst']
+vx_ref = Reference['ground_pars']['vx']
+vcor_ref = Reference['ground_pars']['v_cor_x']
+Ti_ref = Reference['ground_pars']['Ti']
+Of_ref = Reference['ground_pars']['O_frac']
+Hf_ref = Reference['ground_pars']['H_frac']
+AP_ref = Reference['ground_pars']['AP_POT']
+
+idx, _ = np.where( np.isnan(RI_ref))
+RI_ref = np.delete(RI_ref, idx, axis=0)
+RV_ref = np.delete(RV_ref, idx, axis=0)
+vst_ref = np.delete(vst_ref, idx, axis=0)
+vx_ref = np.delete(vx_ref, idx, axis=0)
+vcor_ref = np.delete(vcor_ref, idx, axis=0)
+Ti_ref = np.delete(Ti_ref, idx, axis=0)
+Of_ref = np.delete(Of_ref, idx, axis=0)
+Hf_ref = np.delete(Hf_ref, idx, axis=0)
+AP_ref = np.delete(AP_ref, idx, axis=0)
+
+est = KBinsDiscretizer(n_bins=40, encode="ordinal", strategy='kmeans', random_state=777)
+y_ref = est.fit_transform(np.c_[vst_ref - vx_ref - vcor_ref, AP_ref, Ti_ref])
+y_test = est.transform(np.c_[vst_test - vx_test - vcor_test, AP_test, Ti_test])
 
 import faiss
 from scipy import stats
@@ -156,15 +187,15 @@ class myCallback(EvalCallback):
 
         # take mode as prediction output
         Vxmode, _ = stats.mode(votes[:,:,0],axis=-1,keepdims=False)
-        Timode, _ = stats.mode(votes[:,:,1],axis=-1,keepdims=False)
-        Ofmode, _ = stats.mode(votes[:,:,2],axis=-1,keepdims=False)
+        APmode, _ = stats.mode(votes[:,:,1],axis=-1,keepdims=False)
+        Timode, _ = stats.mode(votes[:,:,2],axis=-1,keepdims=False)
 
         # count how many times it correct
         VxRes = np.sum(self.query_labels_known[:, 0] == Vxmode)
-        TiRes = np.sum(self.query_labels_known[:, 1] == Timode)
-        OfRes = np.sum(self.query_labels_known[:, 2] == Ofmode)
+        APRes = np.sum(self.query_labels_known[:, 1] == APmode)
+        TiRes = np.sum(self.query_labels_known[:, 2] == Timode)
 
-        known_results = {"Vx": VxRes}, {"Ti": TiRes}, {"Of": OfRes}
+        known_results = {"Vx": VxRes}, {"AP": APRes}, {"Ti": TiRes}
         for a in known_results:
             unpack_results(
                 a,
@@ -391,9 +422,7 @@ RNG = tf.random.Generator.from_seed(33)
 def custom_augment(ri):
     noise1 = tf.nn.experimental.general_dropout(RNG.normal(ri.shape, 0, 0.02, dtype=ri.dtype), 0.9, RNG.uniform)*(1-0.9)
     noise2 = tf.nn.experimental.general_dropout(RNG.normal(ri.shape, 0, 0.03, dtype=ri.dtype), 0.7, RNG.uniform)*(1-0.7)
-    return tf_interp(XGRID, RV, ri+noise1+noise2) + RNG.normal(XGRID.shape, 0, 0.01, dtype=ri.dtype)
-    #return tf_interp(XGRID, RV, ri)+RNG.normal(XGRID.shape, 0, 0.01, dtype=ri.dtype)+tf.nn.experimental.general_dropout(RNG.normal(XGRID.shape, 0, 0.04, dtype=ri.dtype), PROB, RNG.uniform)*(1-PROB)
-    #return tf.nn.experimental.general_dropout(tf_interp(XGRID, RV, ri + RNG.normal((ri.shape[-1],), 0, 0.025, dtype=ri.dtype)), PROB, RNG.uniform)*(1-PROB)
+    return tf_interp(XGRID, RV, ri+noise1+noise2) + RNG.normal(XGRID.shape, 0, 0.01, dtype=ri.dtype) #+RNG.normal([],stddev=0.1)
 
 train_one = (
     tf.data.Dataset.from_tensor_slices( DATA ).shuffle(buffer_size=4096, seed=SEED)
@@ -442,19 +471,19 @@ votes = y_ref[indices] # unless self.target_labels is initial as numpy, otherwis
 
 # take mode as prediction output
 Vxmode, _ = stats.mode(votes[:,:,0],axis=-1,keepdims=False)
-Timode, _ = stats.mode(votes[:,:,1],axis=-1,keepdims=False)
-Ofmode, _ = stats.mode(votes[:,:,2],axis=-1,keepdims=False)
+APmode, _ = stats.mode(votes[:,:,1],axis=-1,keepdims=False)
+Timode, _ = stats.mode(votes[:,:,2],axis=-1,keepdims=False)
 
 # count how many times it correct
 VxRes = np.sum(y_test[:, 0] == Vxmode)
-TiRes = np.sum(y_test[:, 1] == Timode)
-OfRes = np.sum(y_test[:, 2] == Ofmode)
+APRes = np.sum(y_test[:, 1] == APmode)
+TiRes = np.sum(y_test[:, 2] == Timode)
 
-print(VxRes, TiRes, OfRes)
+print(VxRes, APRes, TiRes)
 
 TEMPERATURE = 0.25
 INIT_LR = 1e-3
-EPOCHS = 8
+EPOCHS = 10
 HID_SIZE = 16
 
 def get_backbone(input_dim, channel=16):
@@ -494,7 +523,9 @@ history = model.fit(
     train_ds,
     epochs = EPOCHS,
     callbacks=[
-        myCallback(test_ds, y_test, ref_ds, y_ref, k=4)
+        myCallback(test_ds, y_test, ref_ds, y_ref, k=4),
+        tf.keras.callbacks.ModelCheckpoint(
+            "/content/drive/MyDrive/Colab Notebooks/SpaceScience/IVcurveSimilarity/CNNModel/cp-{epoch:03d}.ckpt", verbose=0, save_weights_only=True, save_freq="epoch")
     ],
     verbose = 1,
 )
@@ -513,55 +544,18 @@ plt.grid()
 plt.title("Vx")
 
 ax3 = plt.subplot(143)
+plt.plot(history.history["AP"], label="error")
+plt.grid()
+plt.title("AP")
+
+ax4 = plt.subplot(144)
 plt.plot(history.history["Ti"], label="error")
 plt.grid()
 plt.title("Ti")
 
-ax4 = plt.subplot(144)
-plt.plot(history.history["Of"], label="error")
-plt.grid()
-plt.title("Of")
-
 plt.show()
 
-#model.save_weights("./CNNModel/ckpt")
-
-test = np.load('/content/drive/MyDrive/Colab Notebooks/SpaceScience/Dataset/test_icon_2022_10_15_half_day.npy', allow_pickle=True).item()
-RI_test = test['ri'].reshape(-1,32)
-RV_test = test['rv'].reshape(-1,32)
-vx_test = test['ground_pars'][:,1]
-AP_test = test['ground_pars'][:,2]
-Ti_test = test['ground_pars'][:,3]
-Hf_test= test['ground_pars'][:,4]
-Of_test = test['ground_pars'][:,5]
-vcor_test = test['ground_pars'][:,6]
-vst_test = test['ground_pars'][:,7]
-
-Reference = np.load('/content/drive/MyDrive/Colab Notebooks/SpaceScience/Dataset/train_IVs&pars_uniform.npy', allow_pickle=True).item()
-RI_ref = Reference['ri'].reshape(-1,32)
-RI_ref = RI_ref/np.mean(RI_ref[:,:4],axis=-1,keepdims=True)
-RV_ref = Reference['rv'].reshape(-1,32)
-vst_ref = Reference['ground_pars']['vst']
-vx_ref = Reference['ground_pars']['vx']
-vcor_ref = Reference['ground_pars']['v_cor_x']
-Ti_ref = Reference['ground_pars']['Ti']
-Of_ref = Reference['ground_pars']['O_frac']
-Hf_ref = Reference['ground_pars']['H_frac']
-AP_ref = Reference['ground_pars']['AP_POT']
-
-idx, _ = np.where( np.isnan(RI_ref))
-RI_ref = np.delete(RI_ref, idx, axis=0)
-RV_ref = np.delete(RV_ref, idx, axis=0)
-vst_ref = np.delete(vst_ref, idx, axis=0)
-vx_ref = np.delete(vx_ref, idx, axis=0)
-vcor_ref = np.delete(vcor_ref, idx, axis=0)
-Ti_ref = np.delete(Ti_ref, idx, axis=0)
-Of_ref = np.delete(Of_ref, idx, axis=0)
-Hf_ref = np.delete(Hf_ref, idx, axis=0)
-AP_ref = np.delete(AP_ref, idx, axis=0)
-
-ref_ds = tf.data.Dataset.from_tensor_slices( (RV_ref, RI_ref) ).map(lambda rv, ri: tf_interp(XGRID, rv, ri), num_parallel_calls=tf.data.AUTOTUNE).batch(9)
-test_ds = tf.data.Dataset.from_tensor_slices( (RV_test, RI_test) ).map(lambda rv, ri: tf_interp(XGRID, rv, ri), num_parallel_calls=tf.data.AUTOTUNE).batch(9)
+model.load_weights("/content/drive/MyDrive/Colab Notebooks/SpaceScience/IVcurveSimilarity/CNNModel/cp-004.ckpt")
 
 ref_knn = np.concatenate([x for x in tfds.as_numpy(ref_ds)])
 test_knn = np.concatenate([x for x in tfds.as_numpy(test_ds)])
@@ -569,22 +563,71 @@ index_knn = faiss.IndexFlatL2(ref_knn.shape[1])
 index_knn.add(ref_knn)
 distances_knn, indices_knn = index_knn.search(test_knn, k=4)
 
-reference = model.predict(ref_ds, verbose=0)
-test = model.predict(test_ds, verbose=0)
-index = faiss.IndexFlatL2(reference.shape[1])
-index.add(reference)
-distances, indices = index.search(test, k=4)
+ref_model = model.predict(ref_ds, verbose=0)
+test_model = model.predict(test_ds, verbose=0)
+index_model = faiss.IndexFlatL2(ref_model.shape[1])
+index_model.add(ref_model)
+distances_model, indices_model = index_model.search(test_model, k=4)
 
 # lookup reference label via predicted indices
-votes =AP_ref[indices]
-votes_knn =AP_ref[indices_knn]
+plt.subplot(311)
+vx_model = np.mean(vx_ref[indices_model], axis=1)
+vx_knn = np.mean(vx_ref[indices_knn], axis=1)
+plt.plot(vx_test[10000:16000],'k--')
+plt.plot(vx_model[10000:16000], 'r')
+plt.plot(vx_knn[10000:16000], 'b')
+plt.ylim(-500, 500)
 
-plt.plot(AP_test[:4000],'k--')
-plt.plot( np.mean(votes[:4000, :], axis=1), 'r')
-plt.plot( np.mean(votes_knn[:4000, :], axis=1), 'b')
-plt.ylim(-2.0, -1.0)
+plt.subplot(312)
+AP_model = np.mean(AP_ref[indices_model], axis=1)
+AP_knn = np.mean(AP_ref[indices_knn], axis=1)
+plt.plot(AP_test[10000:16000],'k--')
+plt.plot(AP_model[10000:16000], 'r')
+plt.plot(AP_knn[10000:16000], 'b')
+plt.ylim(-2.0, -0.5)
 
-idx = 2900
+plt.subplot(313)
+Ti_model = np.mean(Ti_ref[indices_model], axis=1)
+Ti_knn = np.mean(Ti_ref[indices_knn], axis=1)
+plt.plot(Ti_test[10000:16000],'k--')
+plt.plot(Ti_model[10000:16000], 'r')
+plt.plot(Ti_knn[10000:16000], 'b')
+#plt.ylim(-2.0, -0.5)
+
+import scipy.optimize as opt
+
+vx_fit= []
+Ti_fit= []
+Of_fit= []
+for idx in range(Ti_test.shape[0]):
+    Fit, _ = opt.leastsq(
+        lambda par,x,y,F: y - F(x, *par),
+        [vx_model[idx], Ti_model[idx], 0.5],
+        args = (RV_test[idx], RI_test[idx], lambda x, vx, T, Of: IVcurve(x, vst_test[idx]-vcor_test[idx]-vx, AP_model[idx], T, Of))
+    )
+    vx_fit.append(Fit[0])
+    Ti_fit.append(Fit[1])
+    Of_fit.append(Fit[2])
+
+# lookup reference label via predicted indices
+plt.subplot(311)
+plt.plot(vx_test[5000:16000],'k--')
+plt.plot(vx_model[5000:16000], 'r')
+plt.plot(vx_fit[5000:16000], 'b')
+plt.ylim(-500, 500)
+
+plt.subplot(312)
+plt.plot(Of_test[5000:16000],'k--')
+plt.plot(Of_fit[5000:16000], 'r')
+plt.ylim(-0.1, 1.1)
+
+plt.subplot(313)
+plt.plot(Ti_test[5000:16000],'k--')
+plt.plot(Ti_model[5000:16000], 'r')
+plt.plot(Ti_fit[5000:16000], 'b')
+plt.ylim(200, 3000)
+
+idx = 11000
 plt.plot(RV_test[idx], RI_test[idx], '.')
 plt.plot(RV_ref[indices[idx,0]], RI_ref[indices[idx,0]])
 plt.plot(RV_ref[indices[idx,1]], RI_ref[indices[idx,1]])
